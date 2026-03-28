@@ -17,6 +17,33 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Create or update GitHub Pages site
+        run: |
+          set -e
+          data='{"build_type":"workflow","source":{"branch":"main","path":"/docs"}}'
+          status=$(curl -s -o /tmp/pages_response.json -w "%{http_code}" \
+            -X POST \
+            -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+            -H "Accept: application/vnd.github+json" \
+            -H "Content-Type: application/json" \
+            https://api.github.com/repos/${{ github.repository }}/pages \
+            -d "$data")
+          if [ "$status" = "201" ]; then
+            echo "GitHub Pages site created."
+          elif [ "$status" = "409" ]; then
+            echo "GitHub Pages site already exists; updating settings."
+            curl -sS -X PUT \
+              -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+              -H "Accept: application/vnd.github+json" \
+              -H "Content-Type: application/json" \
+              https://api.github.com/repos/${{ github.repository }}/pages \
+              -d "$data"
+          else
+            echo "GitHub Pages API call failed with status $status"
+            cat /tmp/pages_response.json
+            exit 1
+          fi
+
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v4
         with:
